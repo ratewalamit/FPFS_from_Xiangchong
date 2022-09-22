@@ -23,98 +23,6 @@ import galsim
 import logging
 import numpy as np
 import astropy.io.fits as pyfits
-import numpy.lib.recfunctions as rfn
-
-class cosmoHSTGal():
-    def __init__(self,version):
-        self.version=version
-        if version=='252':
-            self.directory  =   os.path.join(os.environ['homeWrk'],'COSMOS/galsim_train/COSMOS_25.2_training_sample/')
-            self.catName    =   'real_galaxy_catalog_25.2.fits'
-        elif version=='252E':
-            self.directory  =   os.path.join(os.environ['homeWrk'],'COSMOS/galsim_train/COSMOS_25.2_extended/')
-        else:
-            raise ValueError('Does not support version=%s' %version)
-        self.finName    =   os.path.join(self.directory,'cat_used.fits')
-        self.catused    =   np.array(pyfits.getdata(self.finName))
-        return
-
-    def prepare_sample(self):
-        """Reads the HST galaxy training sample
-        """
-        if not os.path.isfile(self.finName):
-            if self.version=='252':
-                cosmos_cat  =   galsim.COSMOSCatalog(self.catName,dir=self.directory)
-                # used index
-                index_use   =   cosmos_cat.orig_index
-                # used catalog
-                paracat     =   cosmos_cat.param_cat[index_use]
-                # parametric catalog
-                oricat      =   np.array(pyfits.getdata(cosmos_cat.real_cat.getFileName()))[index_use]
-                ra          =   oricat['RA']
-                dec         =   oricat['DEC']
-                indexNew    =   np.arange(len(ra),dtype=int)
-                __tmp=np.stack([ra,dec,indexNew]).T
-                radec=np.array([tuple(__t) for __t in __tmp],dtype=[('ra','>f8'),('dec','>f8'),('index','i8')])
-                catfinal    =   rfn.merge_arrays([paracat,radec], flatten = True, usemask = False)
-                pyfits.writeto(self.finName,catfinal)
-                self.catused    =   catfinal
-            else:
-                return
-        return
-
-# LSST Task
-try:
-    import lsst.geom as geom
-    import lsst.afw.math as afwMath
-    import lsst.afw.image as afwImg
-    import lsst.afw.geom as afwGeom
-    import lsst.meas.algorithms as meaAlg
-    with_lsst=True
-except ImportError as error:
-    with_lsst=False
-
-if with_lsst:
-    def makeLsstExposure(galData,psfData,pixScale,variance):
-        """Makes an LSST exposure object
-
-        Args:
-            galData (ndarray):  array of galaxy image
-            psfData (ndarray):  array of PSF image
-            pixScale (float):   pixel scale
-            variance (float):   noise variance
-
-        Returns:
-            exposure:   LSST exposure object
-        """
-        if not with_lsst:
-            raise ImportError('Do not have lsstpipe!')
-        ny,nx       =   galData.shape
-        exposure    =   afwImg.ExposureF(nx,ny)
-        exposure.getMaskedImage().getImage().getArray()[:,:]=galData
-        exposure.getMaskedImage().getVariance().getArray()[:,:]=variance
-        #Set the PSF
-        ngridPsf    =   psfData.shape[0]
-        psfLsst     =   afwImg.ImageF(ngridPsf,ngridPsf)
-        psfLsst.getArray()[:,:]= psfData
-        psfLsst     =   psfLsst.convertD()
-        kernel      =   afwMath.FixedKernel(psfLsst)
-        kernelPSF   =   meaAlg.KernelPsf(kernel)
-        exposure.setPsf(kernelPSF)
-        #prepare the wcs
-        #Rotation
-        cdelt   =   (pixScale*geom.arcseconds)
-        CD      =   afwGeom.makeCdMatrix(cdelt, geom.Angle(0.))#no rotation
-        #wcs
-        crval   =   geom.SpherePoint(geom.Angle(0.,geom.degrees),geom.Angle(0.,geom.degrees))
-        #crval   =   afwCoord.IcrsCoord(0.*afwGeom.degrees, 0.*afwGeom.degrees) # hscpipe6
-        crpix   =   geom.Point2D(0.0, 0.0)
-        dataWcs =   afwGeom.makeSkyWcs(crpix,crval,CD)
-        exposure.setWcs(dataWcs)
-        #prepare the frc
-        dataCalib = afwImg.makePhotoCalibFromCalibZeroPoint(63095734448.0194)
-        exposure.setPhotoCalib(dataCalib)
-        return exposure
 
 ## For ring tests
 def make_ringrot_radians(nord=8):
@@ -240,7 +148,8 @@ def coord_rotate(x,y,xref,yref,theta):
     return x2,y2
 
 def make_cosmo_sim(outDir,incname,psfInt,gname,Id0,ny=5000,nx=5000,rfrac=0.46,scale=0.168,\
-        do_write=True,return_array=False,rot2=0.):
+        do_write=True,return_array=False,magzero= 27.,rot2=0.):
+
     """Makes cosmo-like blended galaxy image simulations.
 
     Args:
@@ -254,6 +163,7 @@ def make_cosmo_sim(outDir,incname,psfInt,gname,Id0,ny=5000,nx=5000,rfrac=0.46,sc
         rfrac(float):           fraction of radius to minimum between nx and ny
         do_write (bool):        whether write output [default: True]
         return_array (bool):    whether return galaxy array [default: False]
+        magzero (float):        magnitude zero point
         rot2 (float):           additional rotational angle [in units of radians]
     """
     np.random.seed(Id0)
@@ -332,7 +242,6 @@ def make_cosmo_sim(outDir,incname,psfInt,gname,Id0,ny=5000,nx=5000,rfrac=0.46,sc
         gal =   generate_cosmos_gal(ss,truncr=-1.,gsparams=bigfft)
         # determine and assign flux
         # HSC's i-band coadds zero point is 27
-        magzero =   27.
         flux=   10**((magzero-ss['mag_auto'])/2.5)
         gal =   gal.withFlux(flux)
         # rescale the radius while keeping the surface brightness the same
@@ -472,8 +381,8 @@ def generate_cosmos_gal(record,truncr=5.,gsparams=None):
 def galsim_round_sersic(n, sersic_prec):
     return float(int(n/sersic_prec + 0.5)) * sersic_prec
 
-def make_basic_sim(outDir,incname,psfInt,gname,Id0,ny=100,nx=100,scale=0.168,\
-        do_write=True,return_array=False,rot2=0):
+def make_basic_sim(outDir,incname,psfInt,gname,Id0,ny=6400,nx=6400,scale=0.168,\
+        do_write=True,return_array=False,magzero=27.,rot2=0):
     """Makes basic **isolated** galaxy image simulation.
 
     Args:
@@ -482,10 +391,11 @@ def make_basic_sim(outDir,incname,psfInt,gname,Id0,ny=100,nx=100,scale=0.168,\
         psfInt (PSF):           input PSF object of galsim
         gname (str):            shear distortion setup
         Id0 (int):              index of the simulation
-        ny (int):               number of galaxies in y direction
-        nx (int):               number of galaxies in x direction
+        ny (int):               number of pixels in y direction
+        nx (int):               number of pixels in y direction
         do_write (bool):        whether write output [default: True]
         return_array (bool):    whether return galaxy array [default: False]
+        magzero (float):        magnitude zero point [27 for HSC]
         rot2 (float):           additional rotation angle
     """
     outFname=   os.path.join(outDir,'image-%d-%s.fits' %(Id0,gname))
@@ -499,22 +409,24 @@ def make_basic_sim(outDir,incname,psfInt,gname,Id0,ny=100,nx=100,scale=0.168,\
             return None
 
     # Basic parameters
-    ngal   =   nx*ny
-    ngrid  =   64
+    ngrid   =   64
+    ngalx   =   nx//64
+    ngaly   =   ny//64
+    ngal    =   ngalx*ngaly
     # Get the shear information
-    gList  =   np.array([-0.02,0.,0.02])
-    gList  =   gList[[eval(i) for i in gname.split('-')[-1]]]
+    gList   =   np.array([-0.02,0.,0.02])
+    gList   =   gList[[eval(i) for i in gname.split('-')[-1]]]
     if gname.split('-')[0]=='g1':
-        g1 =    gList[0]
-        g2 =    0.
+        g1  =    gList[0]
+        g2  =    0.
     elif gname.split('-')[0]=='g2':
-        g1 =    0.
-        g2 =    gList[0]
+        g1  =    0.
+        g2  =    gList[0]
     else:
         raise ValueError('cannot decide g1 or g2')
     logging.info('Processing for %s, and shears for four redshift bins are %s.' %(gname,gList))
 
-    gal_image=  galsim.ImageF(nx*ngrid,ny*ngrid,scale=scale)
+    gal_image=  galsim.ImageF(nx,ny,scale=scale)
     gal_image.setOrigin(0,0)
     bigfft  =   galsim.GSParams(maximum_fft_size=10240)
     if 'basic' in outDir:
@@ -524,9 +436,9 @@ def make_basic_sim(outDir,incname,psfInt,gname,Id0,ny=100,nx=100,scale=0.168,\
         np.random.seed(Id0)
         logging.info('Making Basic Simulation. ID: %d' %(Id0))
         # Galsim galaxies
-        directory   =   os.path.join(os.environ['homeWrk'],\
-                        'COSMOS/galsim_train/COSMOS_25.2_training_sample/')
-        assert os.path.isdir(directory), 'cannot find galsim galaxies'
+        # directory   =   os.path.join(os.environ['homeWrk'],\
+        #                 'COSMOS/galsim_train/COSMOS_25.2_training_sample/')
+        # assert os.path.isdir(directory), 'cannot find galsim galaxies'
         # catName     =   'real_galaxy_catalog_25.2.fits'
         # cosmos_cat  =   galsim.COSMOSCatalog(catName,dir=directory)
         # catalog
@@ -539,20 +451,19 @@ def make_basic_sim(outDir,incname,psfInt,gname,Id0,ny=100,nx=100,scale=0.168,\
         gal0    =   None
         for i in range(ngal):
             # boundary
-            ix  =   i%nx
-            iy  =   i//nx
+            ix  =   i%ngalx
+            iy  =   i//ngalx
             b   =   galsim.BoundsI(ix*ngrid,(ix+1)*ngrid-1,iy*ngrid,(iy+1)*ngrid-1)
             # each galaxy
             ig  =   i//nrot;   irot =i%nrot
             ss  =   inCat[ig]
             if irot==0:
                 del gal0
-                # gal0    =   cosmos_cat.makeGalaxy(gal_type='parametric',\
+                # gal0  =  cosmos_cat.makeGalaxy(gal_type='parametric',\
                 #             index=ss['index'],gsparams=bigfft)
                 gal0    =   generate_cosmos_gal(ss,truncr=5.,gsparams=bigfft)
                 # accounting for zeropoint difference between COSMOS HST and HSC
                 # HSC's i-band coadds zero point is 27
-                magzero =   27
                 flux    =   10**((magzero-ss['mag_auto'])/2.5)
                 # flux_scaling=   2.587
                 gal0    =   gal0.withFlux(flux)
