@@ -11,10 +11,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-#
 # python lib
 import numpy as np
 
@@ -263,8 +259,8 @@ def fpfsM2E(mm,const=1.,noirev=False):
     out['fpfs_R2E'] =   (s0-s4+2.*e2e2)/np.sqrt(2.)
     del s0,s2,s4,e1e1,e2e2
     # response for selection process (not response for selection function)
-    out['fpfs_RS0']  =  -1.*eM22/np.sqrt(2.)
-    out['fpfs_RS2']  =  -1.*eM42*np.sqrt(6.)/2.
+    out['fpfs_RS0']  =  -1.*eM22/np.sqrt(2.)    # this has spin-4 leakage
+    out['fpfs_RS2']  =  -1.*eM42*np.sqrt(6.)/2. # this has spin-4 leakage
     del eM22,eM42
     return out
 
@@ -310,11 +306,11 @@ class summary_stats():
     def update_selection_weight(self,snms,cuts,cutsigs):
         """Updates the selection weight term with the current selection weight
         """
-        if not isinstance(snms,list):
+        if not isinstance(snms,np.ndarray):
             if isinstance(snms,str) and isinstance(cuts,float) and isinstance(cutsigs,float):
-                snms=[snms]
-                cuts=[cuts]
-                cutsigs=[cutsigs]
+                snms=np.array([snms])
+                cuts=np.array([cuts])
+                cutsigs=np.array([cutsigs])
             else:
                 raise TypeError('snms, cuts and cutsigs should be str, float, float')
         for selnm,cut,cutsig in zip(snms,cuts,cutsigs):
@@ -371,7 +367,7 @@ class summary_stats():
         """Updates the selection bias correction term with the current
         selection weight
         """
-        if not isinstance(snms,list):
+        if not isinstance(snms,np.ndarray):
             if isinstance(snms,str) and isinstance(cuts,float) and isinstance(cutsigs,float):
                 snms=[snms]
                 cuts=[cuts]

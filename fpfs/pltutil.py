@@ -1,3 +1,4 @@
+# FPFS shear estimator
 # Copyright 20220320 Xiangchong Li.
 #
 # This program is free software: you can redistribute it and/or modify
@@ -10,16 +11,12 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the LSST License Statement and
-# the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-#
 # python lib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 colors0=[
-    "black",
+    "#000000",
     "#1A85FF",
     "#D41159",
     "#DE8817",
@@ -33,7 +30,7 @@ for _ic,_cc in enumerate(colors0):
     colors.append((cc2[0], cc2[1], cc2[2], 1-0.1*_ic))
     del cc2
 
-cblue=[
+cblues=[
     "#004c6d",
     "#346888",
     "#5886a5",
@@ -42,7 +39,7 @@ cblue=[
     "#c1e7ff"
     ]
 
-cred=[
+creds=[
     "#DC1C13",
     "#EA4C46",
     "#F07470",
