@@ -26,3 +26,4 @@ examples/output
 *.egg-info
 pip-wheel*
 *wrkDir
+examples/output/noise/noi0000.fits
