@@ -14,6 +14,7 @@
 # python lib
 import numpy as np
 
+
 # functions used for selection
 def tsfunc1(x, deriv=0, mu=0.0, sigma=1.5):
     """Returns the weight funciton [deriv=0], or the *multiplicative factor* to
@@ -72,28 +73,35 @@ def tsfunc2(x, mu=0.0, sigma=1.5, deriv=0):
                         derivative [deriv=1]
     """
     t = (x - mu) / sigma
-    func = lambda t: 1.0 / 2.0 + t / 2.0 + 1.0 / 2.0 / np.pi * np.sin(t * np.pi)
+
+    def func(t):
+        return 1.0 / 2.0 + t / 2.0 + 1.0 / 2.0 / np.pi * np.sin(t * np.pi)
+
+    def func2(t):
+        # /(1./2.+t/2.+1./2./np.pi*np.sin(t*np.pi))
+        return 1.0 / 2.0 / sigma + 1.0 / 2.0 / sigma * np.cos(np.pi * t)
+
+    def func3(t):
+        return (-np.pi / 2.0 / sigma**2.0 * np.sin(np.pi * t))
+
+    def func4(t):
+        return (-((np.pi) ** 2.0) / 2.0 / sigma**3.0 * np.cos(np.pi * t))
 
     if deriv == 0:
         return np.piecewise(t, [t < -1, (t >= -1) & (t <= 1), t > 1], [0.0, func, 1.0])
     elif deriv == 1:
-        func2 = lambda t: (
-            1.0 / 2.0 / sigma + 1.0 / 2.0 / sigma * np.cos(np.pi * t)
-        )  # /(1./2.+t/2.+1./2./np.pi*np.sin(t*np.pi))
         return np.piecewise(
             t,
             [t < -1 + 0.01, (t >= -1 + 0.01) & (t <= 1 - 0.01), t > 1 - 0.01],
             [0.0, lambda t: func2(t) / func(t), 0.0],
         )
     elif deriv == 2:
-        func3 = lambda t: (-np.pi / 2.0 / sigma**2.0 * np.sin(np.pi * t))
         return np.piecewise(
             t,
             [t < -1 + 0.01, (t >= -1 + 0.01) & (t <= 1 - 0.01), t > 1 - 0.01],
             [0.0, lambda t: func3(t) / func(t), 0.0],
         )
     elif deriv == 3:
-        func4 = lambda t: (-((np.pi) ** 2.0) / 2.0 / sigma**3.0 * np.cos(np.pi * t))
         return np.piecewise(
             t,
             [t < -1 + 0.01, (t >= -1 + 0.01) & (t <= 1 - 0.01), t > 1 - 0.01],
@@ -298,12 +306,12 @@ def fpfsM2E(mm, const=1.0, noirev=False):
             e1e1
             - (mm["fpfs_N22cN22c"]) / _w**2.0
             + 4.0 * (e1 * mm["fpfs_N00N22c"]) / _w**2.0
-        ) / (1.0 + 3 * ratio)
+        ) - 3 * ratio*e1e1
         e2e2 = (
             e2e2
             - (mm["fpfs_N22sN22s"]) / _w**2.0
             + 4.0 * (e2 * mm["fpfs_N00N22s"]) / _w**2.0
-        ) / (1.0 + 3 * ratio)
+        ) - 3 * ratio*e2e2
         eM22 = (
             eM22
             - (mm["fpfs_N22cN22c"] + mm["fpfs_N22sN22s"]) / _w
@@ -316,12 +324,19 @@ def fpfsM2E(mm, const=1.0, noirev=False):
             + 1.0 * (q1 * mm["fpfs_N00N22c"] + q2 * mm["fpfs_N00N22s"]) / _w
         ) / (1 + ratio)
         # noise bias correction for ellipticity
-        e1 = (e1 + mm["fpfs_N00N22c"] / _w**2.0) / (1 + ratio)
-        e2 = (e2 + mm["fpfs_N00N22s"] / _w**2.0) / (1 + ratio)
+        # (the following two expressions are accurate to second order of noise)
+        # e1 = (e1 + mm["fpfs_N00N22c"] / _w**2.0) / (1 + ratio)
+        # e2 = (e2 + mm["fpfs_N00N22s"] / _w**2.0) / (1 + ratio)
+        e1 = (e1 + mm["fpfs_N00N22c"] / _w**2.0) - ratio*e1
+        e2 = (e2 + mm["fpfs_N00N22s"] / _w**2.0) - ratio*e2
         # noise bias correction for flux, size
-        s0 = (s0 + mm["fpfs_N00N00"] / _w**2.0) / (1 + ratio)
-        s2 = (s2 + mm["fpfs_N00N20"] / _w**2.0) / (1 + ratio)
-        s4 = (s4 + mm["fpfs_N00N40"] / _w**2.0) / (1 + ratio)
+        # (the following two expressions are accurate to second order of noise)
+        # s0 = (s0 + mm["fpfs_N00N00"] / _w**2.0) / (1 + ratio)
+        # s2 = (s2 + mm["fpfs_N00N20"] / _w**2.0) / (1 + ratio)
+        # s4 = (s4 + mm["fpfs_N00N40"] / _w**2.0) / (1 + ratio)
+        s0 = (s0 + mm["fpfs_N00N00"] / _w**2.0) - ratio*s0
+        s2 = (s2 + mm["fpfs_N00N20"] / _w**2.0) - ratio*s2
+        s4 = (s4 + mm["fpfs_N00N40"] / _w**2.0) - ratio*s4
 
     # spin-2 properties
     out["fpfs_e1"] = e1  # ellipticity
